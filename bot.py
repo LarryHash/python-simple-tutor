@@ -132,10 +132,11 @@ async def start_telegram_bot():
     await app.run_polling()
 
 if __name__ == "__main__":
-    # Run Telegram bot in a separate thread
-    bot_thread = threading.Thread(target=run_telegram_bot)
-    bot_thread.start()
+    # Start Flask in a separate thread (since it doesn't need the main thread)
+    flask_thread = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=10000))
+    flask_thread.start()
 
-    # Run Flask web server (needed for Render)
-    app.run(host="0.0.0.0", port=10000)
+    # Run the Telegram bot in the main thread
+    asyncio.run(start_telegram_bot())
+
 
