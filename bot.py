@@ -9,6 +9,9 @@ import time  # Add time module for retries
 import threading  # Allows running the bot in parallel
 from flask import Flask  # Web server for Render
 import asyncio
+import nest_asyncio
+
+nest_asyncio.apply()  # Allows nested event loops
 
 # Load environment variables
 load_dotenv()
@@ -114,29 +117,21 @@ async def handle_message(update: Update, context: CallbackContext):
     ai_reply = get_gemini_reply(user_text)
     await update.message.reply_text(ai_reply)  # Await the reply
 
-def run_telegram_bot():
-    """Run the Telegram bot in a separate thread to keep it running."""
-    while True:
-        try:
-            asyncio.run(start_telegram_bot())
-        except Exception as e:
-            logging.error(f"Bot crashed: {e}, restarting in 5 seconds...")
-            time.sleep(5)
-
 async def start_telegram_bot():
-    """Start the bot with an event loop."""
+    """Start the Telegram bot with an event loop."""
     app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
     logging.info("Bot started. Listening for messages...")
     await app.run_polling()
 
-if __name__ == "__main__":
-    # Start Flask in a separate thread (since it doesn't need the main thread)
-    flask_thread = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=10000))
+async def main():
+    """Run both Flask and Telegram bot asynchronously."""
+    PORT = int(os.getenv("PORT", 10000))
+    flask_thread = threading.Thread(target=lambda: app.run(host="0.0.0.0", port=PORT))
     flask_thread.start()
+    await start_telegram_bot()
 
-    # Run the Telegram bot in the main thread
-    asyncio.run(start_telegram_bot())
+if __name__ == "__main__":
+    asyncio.run(main())
 
 
