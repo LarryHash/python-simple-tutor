@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, CallbackContext
 import time  # Add time module for retries
+import threading  # Allows running the bot in parallel
+from flask import Flask  # Web server for Render
+
 
 # Load environment variables
 load_dotenv()
@@ -18,6 +21,13 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s",
     level=logging.INFO
 )
+
+# Flask web app to keep Render service alive
+app = Flask(__name__)
+
+@app.route("/")
+def home():
+    return "Linh Chatbot is running and alive on Render!"
 
 # Load predefined responses from JSON file
 def load_predefined_responses():
@@ -104,14 +114,24 @@ async def handle_message(update: Update, context: CallbackContext):
     ai_reply = get_gemini_reply(user_text)
     await update.message.reply_text(ai_reply)  # Await the reply
 
-def main():
-    """Start the bot."""
-    app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
-    
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    logging.info("Bot started. Listening for messages...")
-    app.run_polling()
+
+def run_telegram_bot():
+    """Run the Telegram bot in a separate thread to keep it running."""
+    while True:
+        try:
+            app = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+            app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+            logging.info("Bot started. Listening for messages...")
+            app.run_polling()
+        except Exception as e:
+            logging.error(f"Bot crashed: {e}, restarting in 5 seconds...")
+            time.sleep(5)
 
 if __name__ == "__main__":
-    main()
+    # Run Telegram bot in a separate thread
+    bot_thread = threading.Thread(target=run_telegram_bot)
+    bot_thread.start()
+
+    # Run Flask web server (needed for Render)
+    app.run(host="0.0.0.0", port=10000)
+
